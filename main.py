@@ -60,12 +60,14 @@ class App:
         self.track_len = 10
         self.detect_interval = 5
         self.tracks = []
-        self.cam = cv.VideoCapture("./data/output-1.mp4")
+        self.cam = cv.VideoCapture("./data/output-2.mp4")
         self.frame_idx = 0
 
     def run(self):
+        counter = 0
         while True:
             _ret, frame = self.cam.read()
+            counter += 1
             frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
             vis = frame.copy()
 
@@ -88,6 +90,29 @@ class App:
                 self.tracks = new_tracks
                 cv.polylines(vis, [np.int32(tr) for tr in self.tracks], False, (0, 255, 0))
                 #draw_str(vis, (20, 20), 'track count: %d' % len(self.tracks))
+                try:
+                    pairs = np.array([(t[0], t[-1]) for t in self.tracks])
+                    # axis=0 contains pairs of points (x,y) for each track
+                    # axis=1 contains a point (x,y) for each track
+                    # axis=2 contains the x or y coordinate for each point
+                    # find the vectors between the point 1 and 2 for each track
+                    vectors = pairs[:,1,:] - pairs[:,0,:]
+                    # normalize the vectors
+                    norm_vectors = vectors / np.linalg.norm(vectors, axis=1)[:, np.newaxis]
+                    # find the sum of the vectors
+                    sum_vector = np.sum(norm_vectors, axis=0)
+                    # normalize the sum_vector and multiply by 100
+                    sum_vector = sum_vector / np.linalg.norm(sum_vector) * 100
+
+                    # draw the sum_vector on vis as a line in the center of the image
+                    center = np.int32([vis.shape[1]/2, vis.shape[0]/2])
+                    vis_vector = [np.int32(center), np.int32(center - sum_vector)]
+                    cv.line(vis, vis_vector[0], vis_vector[1], (0, 0, 255), 2)
+                except Exception as e:
+                    pass
+
+
+
 
             if self.frame_idx % self.detect_interval == 0:
                 mask = np.zeros_like(frame_gray)
