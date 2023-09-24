@@ -3,3 +3,4 @@ matplotlib
 opencv-contrib-python
 scipy
 scikit-learn
+pytest
