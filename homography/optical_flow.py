@@ -16,3 +16,14 @@ def checked_trace(img_ref, img_new, features, back_threshold=1.0):
 def trace_homography(features0, features1, use_ransac):
     H, status = cv2.findHomography(features0, features1, cv2.RANSAC if use_ransac else 0, 10.0)
     return H, status
+
+
+def features_to_track(frame):
+    feature_params = dict(maxCorners=1000,
+                          qualityLevel=0.01,
+                          minDistance=8,
+                          blockSize=19)
+    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    return cv2.goodFeaturesToTrack(frame_gray, **feature_params)
+
+

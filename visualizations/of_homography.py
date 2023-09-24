@@ -22,12 +22,7 @@ r     - toggle RANSAC
 
 import cv2
 
-from homography.optical_flow import checked_trace, trace_homography
-
-feature_params = dict(maxCorners=1000,
-                      qualityLevel=0.01,
-                      minDistance=8,
-                      blockSize=19)
+from homography.optical_flow import checked_trace, trace_homography, features_to_track
 
 green = (0, 255, 0)
 red = (0, 0, 255)
@@ -35,6 +30,9 @@ red = (0, 0, 255)
 
 class App:
     def __init__(self, video_src):
+        self.frame0 = None
+        self.gray0 = None
+        self.gray1 = None
         self.cam = video_src
         self.start_features = None
         self.cur_features = None
@@ -60,9 +58,9 @@ class App:
                 overlay = cv2.warpPerspective(self.frame0, H, (w, h))
                 vis = cv2.addWeighted(vis, 0.5, overlay, 0.5, 0.0)
 
-                self.vis_vectors(status, vis)
+                self.vis_vectors(vis, status)
             else:
-                self.vis_features(frame_gray, vis)
+                self.vis_features(vis, frame)
 
             cv2.imshow('lk_homography', vis)
 
@@ -70,11 +68,11 @@ class App:
             if ch == 27:
                 break
             if ch == ord(' '):
-                self.init_features(frame, frame_gray)
+                self.init_features(frame)
             if ch == ord('r'):
                 self.use_ransac = not self.use_ransac
 
-    def vis_vectors(self, status, vis):
+    def vis_vectors(self, vis, status):
         for (x0, y0), (x1, y1), good in zip(self.start_features[:, 0], self.cur_features[:, 0], status[:, 0]):
             x0, y0, x1, y1 = map(int, [x0, y0, x1, y1])
             if good:
@@ -84,29 +82,30 @@ class App:
         # if self.use_ransac:
         #     draw_str(vis, (20, 40), 'RANSAC')
 
-    def vis_features(self, frame_gray, vis):
-        p = cv2.goodFeaturesToTrack(frame_gray, **feature_params)
+    def vis_features(self, vis, frame):
+        p = features_to_track(frame)
         if p is not None:
             for x, y in p[:, 0]:
                 # cv2.circle(vis, (x, y), 2, green, -1)
                 cv2.circle(vis, (int(x), int(y)), 2, green, 2)
             # draw_str(vis, (20, 20), 'feature count: %d' % len(p))
 
-    def init_features(self, frame, frame_gray):
+    def init_features(self, frame):
         self.frame0 = frame.copy()
-        self.start_features = cv2.goodFeaturesToTrack(frame_gray, **feature_params)
+        self.start_features = features_to_track(frame)
         if self.start_features is not None:
             self.cur_features = self.start_features
+            frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             self.gray0 = frame_gray
             self.gray1 = frame_gray
 
 
 def main():
-    import sys
-    try:
-        video_src = sys.argv[1]
-    except:
-        video_src = cv2.VideoCapture("../data/output-2.mp4")
+    # import sys
+    # try:
+    #     video_src = sys.argv[1]
+    # except:
+    video_src = cv2.VideoCapture("../data/output-2.mp4")
 
     # print __doc__
     App(video_src).run()
