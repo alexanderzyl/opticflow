@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 import pytest
 
 from homography.optical_flow import features_to_track, checked_trace, trace_homography
@@ -11,6 +12,12 @@ def video_src():
 
 
 green = (0, 255, 0)
+
+K = [[288.74930952, 0., 627.15663904],
+     [0., 297.66981327, 479.18418123],
+     [0., 0., 1.]]
+
+K = np.array(K)
 
 
 def test_2_frames(video_src):
