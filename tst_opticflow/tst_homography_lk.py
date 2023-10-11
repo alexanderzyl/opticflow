@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import pytest
 
+from homography.decomposition import HomographyDecomposition
 from homography.optical_flow import features_to_track, checked_trace, trace_homography
 
 
@@ -18,6 +19,21 @@ K = [[288.74930952, 0., 627.15663904],
      [0., 0., 1.]]
 
 K = np.array(K)
+
+
+def quaternion(R):
+    # Convert rotation matrix to rotation vector
+    rot_vec, _ = cv2.Rodrigues(R)
+
+    # Convert rotation vector to quaternion
+    theta = np.linalg.norm(rot_vec)
+    n = rot_vec / theta if theta > 0 else rot_vec
+
+    q_w = np.cos(theta / 2)
+    q_xyz = n * np.sin(theta / 2)
+
+    quaternion = np.concatenate(([q_w], q_xyz)).reshape(-1, 1)
+    return quaternion
 
 
 def test_2_frames(video_src):
@@ -72,26 +88,20 @@ def test_decompose_H(video_src):
     assert H is not None
 
     # Decompose
-    retval, rotations, translations, normals = cv2.decomposeHomographyMat(H, K)
+    HD = HomographyDecomposition(H, K)
 
-    def _reconstruct_H(solution):
-        R = rotations[solution]
-        t = translations[solution]
-        n = normals[solution]
+    diffs = [np.linalg.norm(H - Hr) for Hr in HD.H_r]
 
-        # Reconstruct H
-        H_r = K @ (R - t @ n.T) @ np.linalg.inv(K)
+    best = np.argmin(diffs)
 
-        # find the distance between H and H_r
-        return H_r
+    H_best = HD.H_r[best]
+    # H_best = HD.H_r[0]
 
-    diffs = [np.linalg.norm(H - _reconstruct_H(solution)) for solution in range(len(rotations))]
-
-    H_r = _reconstruct_H(np.argmin(diffs))
-    # H_r = _reconstruct_H(3)
+    # R_best = HD.R_r[best]
+    # q = quaternion(R_best)
 
     h, w = frame1.shape[:2]
-    overlay = cv2.warpPerspective(frame0, H_r, (w, h))
+    overlay = cv2.warpPerspective(frame0, H_best, (w, h))
     # overlay = frame0.copy()
     vis = cv2.addWeighted(frame1, 0.5, overlay, 0.5, 0.0)
 
