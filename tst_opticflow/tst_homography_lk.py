@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import pytest
+import quaternion
 
 from homography.decomposition import HomographyDecomposition
 from homography.optical_flow import features_to_track, checked_trace, trace_homography
@@ -19,21 +20,6 @@ K = [[288.74930952, 0., 627.15663904],
      [0., 0., 1.]]
 
 K = np.array(K)
-
-
-def quaternion(R):
-    # Convert rotation matrix to rotation vector
-    rot_vec, _ = cv2.Rodrigues(R)
-
-    # Convert rotation vector to quaternion
-    theta = np.linalg.norm(rot_vec)
-    n = rot_vec / theta if theta > 0 else rot_vec
-
-    q_w = np.cos(theta / 2)
-    q_xyz = n * np.sin(theta / 2)
-
-    quaternion = np.concatenate(([q_w], q_xyz)).reshape(-1, 1)
-    return quaternion
 
 
 def test_2_frames(video_src):
@@ -97,9 +83,6 @@ def test_decompose_H(video_src):
     H_best = HD.H_r[best]
     # H_best = HD.H_r[0]
 
-    # R_best = HD.R_r[best]
-    # q = quaternion(R_best)
-
     h, w = frame1.shape[:2]
     overlay = cv2.warpPerspective(frame0, H_best, (w, h))
     # overlay = frame0.copy()
@@ -107,6 +90,66 @@ def test_decompose_H(video_src):
 
     cv2.imshow('decomposed_H', vis)
     cv2.waitKey(0)
+
+
+def test_2_successive_rotations(video_src):
+    video_src.set(cv2.CAP_PROP_POS_FRAMES, 550)
+    _, frame0 = video_src.read()
+    video_src.set(cv2.CAP_PROP_POS_FRAMES, 560)
+    _, frame1 = video_src.read()
+    video_src.set(cv2.CAP_PROP_POS_FRAMES, 570)
+    _, frame2 = video_src.read()
+
+    features0 = features_to_track(frame0)
+
+    features_update, keep = checked_trace(frame0, frame1, features0)
+    features1 = features0[keep]
+    live_features_update = features_update[keep]
+    H_01, status = trace_homography(features1, live_features_update, True)
+    HD_01 = HomographyDecomposition(H_01, K)
+    Q_01 = [quaternion.from_rotation_matrix(R) for R in HD_01.rotations]
+
+    features_update, keep = checked_trace(frame1, frame2, features1)
+    features2 = features1[keep]
+    live_features_update = features_update[keep]
+    H_12, status = trace_homography(features2, live_features_update, True)
+    HD_12 = HomographyDecomposition(H_12, K)
+    Q_12 = [quaternion.from_rotation_matrix(R) for R in HD_12.rotations]
+
+    # cartesian product of Q_01 and Q_12
+    Q_012 = [q2 * q1 for q1 in Q_01 for q2 in Q_12]
+
+    features_update, keep = checked_trace(frame0, frame2, features0)
+    features2 = features0[keep]
+    live_features_update = features_update[keep]
+    H_02, status = trace_homography(features2, live_features_update, True)
+    HD_02 = HomographyDecomposition(H_02, K)
+    Q_02 = [quaternion.from_rotation_matrix(R) for R in HD_02.rotations]
+
+    # For each pair in Q_012 and Q_02 find the quaternion distance. Return the pair with the smallest distance and
+    # the index in Q_02
+    t = [(1 - (q.components @ Q_02[i].components)**2, q, i) for q in Q_012 for i in range(len(Q_02))]
+    t.sort(key=lambda x: x[0])
+    q012 = t[0][1]
+    hd02_index = t[0][2]
+
+    H_best = HD_02.reconstruct(quaternion.as_rotation_matrix(q012),
+                               HD_02.translations[hd02_index], HD_02.normals[hd02_index])
+
+    # diffs = [np.linalg.norm(H_02 - Hr) for Hr in HD_02.H_r]
+    #
+    # best = np.argmin(diffs)
+    #
+    # H_best = HD_02.H_r[best]
+
+    h, w = frame2.shape[:2]
+    overlay = cv2.warpPerspective(frame0, H_best, (w, h))
+    vis = cv2.addWeighted(frame2, 0.5, overlay, 0.5, 0.0)
+
+    cv2.imshow('decomposed_H', vis)
+    cv2.waitKey(0)
+
+
 
 
 def test_full_run(video_src):

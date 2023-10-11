@@ -7,9 +7,9 @@ class HomographyDecomposition:
         self.H = H
         self.K = K
         self.status, self.rotations, self.translations, self.normals = cv2.decomposeHomographyMat(H, K)
-        self.H_r = [self._reconstruct(R, t, n) for R, t, n in zip(self.rotations, self.translations, self.normals)]
+        self.H_r = [self.reconstruct(R, t, n) for R, t, n in zip(self.rotations, self.translations, self.normals)]
 
-    def _reconstruct(self, R, t, n):
+    def reconstruct(self, R, t, n):
         H_r = self.K @ (R - t @ n.T) @ np.linalg.inv(self.K)
         return H_r
 
