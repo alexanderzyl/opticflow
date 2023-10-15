@@ -83,10 +83,24 @@ def test_decompose_H(video_src):
     H_best = HD.H_r[best]
     # H_best = HD.H_r[0]
 
+    # Convert the rotation matrix R to a rotation vector
+    rvec, _ = cv2.Rodrigues(HD.rotations[best])
+
+    # Sample translation vector (replace with your actual translation vector)
+    tvec = np.array([0, 0, 0], dtype=float)
+
+    # Distortion coefficients (replace with your actual distortion coefficients or use zeros if unknown)
+    dist_coeffs = np.array([0, 0, 0, 0, 0], dtype=float)
+
     h, w = frame1.shape[:2]
     overlay = cv2.warpPerspective(frame0, H_best, (w, h))
     # overlay = frame0.copy()
     vis = cv2.addWeighted(frame1, 0.5, overlay, 0.5, 0.0)
+
+    # Draw the axes on the image
+    vis = cv2.drawFrameAxes(
+        vis, K, dist_coeffs, rvec, tvec, length=1.0, thickness=3
+    )
 
     cv2.imshow('decomposed_H', vis)
     cv2.waitKey(0)
@@ -128,7 +142,7 @@ def test_2_successive_rotations(video_src):
 
     # For each pair in Q_012 and Q_02 find the quaternion distance. Return the pair with the smallest distance and
     # the index in Q_02
-    t = [(1 - (q.components @ Q_02[i].components)**2, q, i) for q in Q_012 for i in range(len(Q_02))]
+    t = [(1 - (q.components @ Q_02[i].components) ** 2, q, i) for q in Q_012 for i in range(len(Q_02))]
     t.sort(key=lambda x: x[0])
     q012 = t[0][1]
     hd02_index = t[0][2]
@@ -148,8 +162,6 @@ def test_2_successive_rotations(video_src):
 
     cv2.imshow('decomposed_H', vis)
     cv2.waitKey(0)
-
-
 
 
 def test_full_run(video_src):
