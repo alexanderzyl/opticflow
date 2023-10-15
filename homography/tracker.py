@@ -2,6 +2,7 @@ from collections import namedtuple
 from types import SimpleNamespace
 
 import numpy as np
+import quaternion
 
 from homography.decomposition import HomographyDecomposition
 from homography.optical_flow import features_to_track, checked_trace, trace_homography
@@ -14,6 +15,8 @@ class Tracker:
         self._features_to_track = None
         self._H_status = None
         self._H = None
+        self._quaternion = quaternion.one
+        self._decomposition = None
 
     @property
     def prev_frame(self):
@@ -34,14 +37,23 @@ class Tracker:
         self.prev_frame = self._cur_frame
         self._cur_frame = frame
 
-    def update(self):
+    @property
+    def decomposition(self):
+        return self._decomposition
+
+    @property
+    def accum_quaternion(self):
+        return self._quaternion
+
+    def update(self, K):
         if self.prev_frame is not None and self.cur_frame is not None and self._features_to_track is not None:
             features_update, keep = checked_trace(self.prev_frame, self.cur_frame, self._features_to_track)
             live_features = self._features_to_track[keep]
             live_features_update = features_update[keep]
             self._H, self._H_status = trace_homography(live_features, live_features_update, True)
+            self._decompose(K)
 
-    def decompose(self, K):
+    def _decompose(self, K):
         # Decompose
         if self._H is None:
             return None
@@ -52,7 +64,10 @@ class Tracker:
 
         best = np.argmin(diffs)
 
-        return SimpleNamespace(**{
+        cur_quaternion = quaternion.from_rotation_matrix(HD.rotations[best])
+        self._quaternion = cur_quaternion * self._quaternion
+
+        self._decomposition = SimpleNamespace(**{
             'R': HD.rotations[best],
             'Ho': HD.H,
             'Hr': HD.H_r[best],

@@ -3,6 +3,7 @@ import itertools
 import cv2
 import numpy as np
 import pytest
+import quaternion
 
 from homography.tracker import Tracker
 
@@ -27,10 +28,10 @@ def video_src():
     return frame_iterator(video_src)
 
 
-def draw_axes(decomposed, vis):
+def draw_axes(R, vis):
     # Draw the axes on the image
     # Convert the rotation matrix R to a rotation vector
-    rvec, _ = cv2.Rodrigues(decomposed.R)
+    rvec, _ = cv2.Rodrigues(R)
     # Sample translation vector (replace with your actual translation vector)
     tvec = np.array([0, 0, 0], dtype=float)
     # Distortion coefficients (replace with your actual distortion coefficients or use zeros if unknown)
@@ -46,14 +47,17 @@ def test_visual(video_src):
 
     for frame in itertools.islice(video_src, 0, None, 10):
         method.cur_frame = frame
-        method.update()
-        if method.prev_frame is not None and method.cur_frame is not None:
-            decomposed = method.decompose(K)
+        method.update(K)
+        if method.decomposition is not None:
+            decomposed = method.decomposition
             h, w = method.cur_frame.shape[:2]
-            overlay = cv2.warpPerspective(method.prev_frame, decomposed.Ho, (w, h))
+            overlay = cv2.warpPerspective(method.prev_frame, decomposed.Hr, (w, h))
 
             vis = cv2.addWeighted(method.cur_frame, 0.5, overlay, 0.5, 0.0)
-            vis = draw_axes(decomposed, vis)
+            R = quaternion.as_rotation_matrix(method.accum_quaternion)
+            # print(np.linalg.norm(method.accum_quaternion.components))
+            # R =decomposed.R
+            # vis = draw_axes(R, vis)
             cv2.imshow("Frame", vis)
             if cv2.waitKey(100) & 0xFF == ord('q'):
                 break
