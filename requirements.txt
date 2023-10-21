@@ -3,5 +3,6 @@ matplotlib
 opencv-contrib-python
 scipy
 scikit-learn
+scikit-image
 numpy-quaternion
 pytest
