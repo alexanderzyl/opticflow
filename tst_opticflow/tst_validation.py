@@ -54,24 +54,23 @@ def test_2_frames(video_src):
     v1 = v1.astype(np.int32)
 
     vectors = np.zeros((h, w), dtype=np.uint8)
-    lines = cv2.HoughLines(vectors, 1, np.pi / 180, 128)
-    # Draw the detected lines
-    for rho, theta in lines[:, 0]:
-        a = np.cos(theta)
-        b = np.sin(theta)
-        x0 = a * rho
-        y0 = b * rho
-        x1 = int(x0 + 1000 * (-b))
-        y1 = int(y0 + 1000 * (a))
-        x2 = int(x0 - 1000 * (-b))
-        y2 = int(y0 - 1000 * (a))
-        cv2.line(vectors, (x1, y1), (x2, y2), (255, 0, 0), 1)  # Draw detected lines in blue
-
-
-    # draw lines on the image using OpenCV v0 - first points, v1 - second points
-    # Draw lines
     for (x1, y1), (x2, y2) in zip(v0, v1):
         cv2.line(vectors, (x1, y1), (x2, y2), 255, 1)
+
+    lines = cv2.HoughLines(vectors, 1, np.pi / 180, 50)
+    # Draw the detected lines
+    # for rho, theta in lines[:, 0]:
+    #     a = np.cos(theta)
+    #     b = np.sin(theta)
+    #     x0 = a * rho
+    #     y0 = b * rho
+    #     x1 = int(x0 + 1000 * (-b))
+    #     y1 = int(y0 + 1000 * (a))
+    #     x2 = int(x0 - 1000 * (-b))
+    #     y2 = int(y0 - 1000 * (a))
+    #     cv2.line(vectors, (x1, y1), (x2, y2), (255, 0, 0), 1)  # Draw detected lines in blue
+
+
 
 
     from matplotlib import pyplot as plt
