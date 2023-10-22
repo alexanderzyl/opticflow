@@ -42,10 +42,10 @@ def line3d(img, pt1, pt2, K):
     imgpt0, _ = cv2.projectPoints(objpt, np.zeros(3), np.zeros(3), K, np.float64([]))
     p1 = tuple(imgpt0[0].ravel())
     p2 = tuple(imgpt0[1].ravel())
-    img = cv2.line(img, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), (255, 50, 100), 3)
+    cv2.line(img, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), (255, 50, 100), 3)
 
 
-def test_2_frames(video_src):
+def test_sinogram_2_frames(video_src):
     video_src.set(cv2.CAP_PROP_POS_FRAMES, 500)
     _, frame0 = video_src.read()
     video_src.set(cv2.CAP_PROP_POS_FRAMES, 510)
@@ -115,8 +115,10 @@ def test_full_run(video_src, K, dist):
     h, w = frame0.shape[:2]
     new_cam, roi = cv2.getOptimalNewCameraMatrix(K, dist, (w, h), 1, (w, h))
 
+    freeze = False
+
     while res:
-        if i % 5 == 0:
+        if i % 10 == 0:
             frame0 = cv2.undistort(frame0, K, dist, None, new_cam)
             frame1 = cv2.undistort(frame1, K, dist, None, new_cam)
             features = features_to_track(frame0)
@@ -135,7 +137,6 @@ def test_full_run(video_src, K, dist):
             HD = HomographyDecomposition(H, new_cam)
 
             best = 2
-
             H_best = HD.H_r[best]
 
             h, w = frame1.shape[:2]
@@ -156,8 +157,19 @@ def test_full_run(video_src, K, dist):
 
             line3d(img=vis, pt1=[0., 0., 0.], pt2=[x, y, z], K=new_cam)
 
+            v0, v1 = live_features[:, 0], live_features_update[:, 0]
+
+            for (x0, y0), (x1, y1) in zip(v0, v1):
+                x0, y0, x1, y1 = map(int, [x0, y0, x1, y1])
+                cv2.line(vis, (x0, y0), (x1, y1), (200, 0, 0), 2)
+                cv2.circle(vis, (x1, y1), 2, green, -1)
+
             cv2.imshow('decomposed_H', vis)
-            cv2.waitKey(100)
+            key = cv2.waitKey(0) if freeze else cv2.waitKey(100)
+            if key == 27:
+                break
+            if key == ord(' '):
+                freeze = not freeze
             cv2.destroyAllWindows()
 
         frame0 = frame1
