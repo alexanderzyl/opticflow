@@ -3,6 +3,7 @@ import copy
 import cv2
 import numpy as np
 import pytest
+from scipy.interpolate import Rbf
 from skimage.transform import radon, iradon
 
 from homography.decomposition import HomographyDecomposition
@@ -43,6 +44,58 @@ def line3d(img, pt1, pt2, K):
     p1 = tuple(imgpt0[0].ravel())
     p2 = tuple(imgpt0[1].ravel())
     cv2.line(img, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), (255, 50, 100), 3)
+
+
+def test_divergence_2_frames(video_src):
+    video_src.set(cv2.CAP_PROP_POS_FRAMES, 600)
+    _, frame0 = video_src.read()
+    video_src.set(cv2.CAP_PROP_POS_FRAMES, 610)
+    _, frame1 = video_src.read()
+
+    features = features_to_track(frame0)
+
+    vis = copy.deepcopy(frame1)
+
+    features_update, keep = checked_trace(frame0, frame1, features)
+    v0 = features[keep][:, 0].astype(np.int32)
+    v1 = features_update[keep][:, 0].astype(np.int32)
+    # 1. Compute the displacements
+    d = v1 - v0
+
+    h, w = frame1.shape[:2]
+
+    # Compute the RBF interpolation for u and v components separately
+    rbf_u = Rbf(v0[:, 1], v0[:, 0], d[:, 0], function='linear')
+    rbf_v = Rbf(v0[:, 1], v0[:, 0], d[:, 1], function='linear')
+
+    # Generate a grid for the entire field
+    grid_y, grid_x = np.mgrid[0:h, 0:w]
+
+    # Evaluate the RBFs on the grid
+    u = rbf_u(grid_y, grid_x)
+    v = rbf_v(grid_y, grid_x)
+
+    grad = np.abs(u) + np.abs(v)
+
+    # 5. Compute the Divergence
+    # du_dx = cv2.Sobel(u, cv2.CV_64F, 1, 0, ksize=3)
+    # dv_dy = cv2.Sobel(v, cv2.CV_64F, 0, 1, ksize=3)
+    #
+    # divergence = np.abs(du_dx + dv_dy)
+
+    # find index of the pixel with the largest divergence
+    y, x = np.where(grad == grad.min())
+
+    # draw a circle around the pixel with the largest divergence
+    cv2.circle(vis, (x[0], y[0]), 5, (0, 0, 255), -1)
+
+    for (x0, y0), (x1, y1) in zip(v0, v1):
+        x0, y0, x1, y1 = map(int, [x0, y0, x1, y1])
+        cv2.line(vis, (x0, y0), (x1, y1), (0, 128, 0))
+        cv2.circle(vis, (x1, y1), 2, green, -1)
+
+    cv2.imshow('lk_homography', vis)
+    cv2.waitKey(0)
 
 
 def test_sinogram_2_frames(video_src):
@@ -163,6 +216,9 @@ def test_full_run(video_src, K, dist):
                 x0, y0, x1, y1 = map(int, [x0, y0, x1, y1])
                 cv2.line(vis, (x0, y0), (x1, y1), (200, 0, 0), 2)
                 cv2.circle(vis, (x1, y1), 2, green, -1)
+
+            # add i as text
+            cv2.putText(vis, str(i), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
             cv2.imshow('decomposed_H', vis)
             key = cv2.waitKey(0) if freeze else cv2.waitKey(100)
