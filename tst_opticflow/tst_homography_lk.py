@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import pytest
 import quaternion
+import copy
 
 from homography.decomposition import HomographyDecomposition
 from homography.optical_flow import features_to_track, checked_trace, trace_homography
@@ -13,14 +14,26 @@ def video_src():
     return video_src
 
 
+def line3d(img, pt1, pt2, K):
+    objpt = np.float64([pt1,pt2])
+    imgpt0, _ = cv2.projectPoints(objpt, np.zeros(3), np.zeros(3), K, np.float64([]))
+    p1 = tuple(imgpt0[0].ravel())
+    p2 = tuple(imgpt0[1].ravel())
+    img = cv2.line(img, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), (255,50,100), 3)
+
 green = (0, 255, 0)
 
-K = [[288.74930952, 0., 627.15663904],
-     [0., 297.66981327, 479.18418123],
+# optical axis
+x_c = 627.15663904
+y_c = 479.18418123
+
+dist = np.array([-0.05934245, -0.01461297, -0.03792086, 0.00428712, 0.00299862], dtype=float)
+
+K = [[288.74930952, 0., x_c],
+     [0., 297.66981327, y_c],
      [0., 0., 1.]]
 
 K = np.array(K)
-
 
 def test_2_frames(video_src):
     video_src.set(cv2.CAP_PROP_POS_FRAMES, 600)
@@ -56,10 +69,24 @@ def test_2_frames(video_src):
 
 
 def test_decompose_H(video_src):
-    video_src.set(cv2.CAP_PROP_POS_FRAMES, 600)
+
+    #undistortion = False
+    undistortion = True
+    frame_num = 500
+
+    video_src.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
     _, frame0 = video_src.read()
-    video_src.set(cv2.CAP_PROP_POS_FRAMES, 610)
+    video_src.set(cv2.CAP_PROP_POS_FRAMES, frame_num + 10)
     _, frame1 = video_src.read()
+
+    Cam = copy.copy(K)
+
+    if (undistortion == True):
+        h,  w = frame0.shape[:2]
+        newK, roi = cv2.getOptimalNewCameraMatrix(K, dist, (w,h), 1, (w,h))
+        frame0 = cv2.undistort(frame0, K, dist, None, newK)
+        frame1 = cv2.undistort(frame1, K, dist, None, newK)
+        Cam = copy.copy(newK)
 
     features = features_to_track(frame0)
     assert features is not None
@@ -74,7 +101,7 @@ def test_decompose_H(video_src):
     assert H is not None
 
     # Decompose
-    HD = HomographyDecomposition(H, K)
+    HD = HomographyDecomposition(H, Cam)
 
     diffs = [np.linalg.norm(H - Hr) for Hr in HD.H_r]
 
@@ -92,6 +119,9 @@ def test_decompose_H(video_src):
     # Distortion coefficients (replace with your actual distortion coefficients or use zeros if unknown)
     dist_coeffs = np.array([0, 0, 0, 0, 0], dtype=float)
 
+    #if (undistortion == True):
+    #    dist_coeffs = dist
+
     h, w = frame1.shape[:2]
     overlay = cv2.warpPerspective(frame0, H_best, (w, h))
     # overlay = frame0.copy()
@@ -99,8 +129,23 @@ def test_decompose_H(video_src):
 
     # Draw the axes on the image
     vis = cv2.drawFrameAxes(
-        vis, K, dist_coeffs, rvec, tvec, length=1.0, thickness=3
+        vis, Cam, dist_coeffs, np.zeros(3), np.zeros(3), length=1.0, thickness=1
     )
+
+    translation_res = HD.translations[best]
+    normal_res = HD.normals[best]
+
+    print("normals:")
+    print(HD.normals)
+
+    print("best normal:")
+    print(HD.normals[best])
+
+    x = translation_res[0][0]
+    y = translation_res[1][0]
+    z = translation_res[2][0]
+
+    line3d(img=vis, pt1=[0.,0.,0.], pt2=[x,y,z], K=Cam)
 
     cv2.imshow('decomposed_H', vis)
     cv2.waitKey(0)
@@ -168,6 +213,7 @@ def test_full_run(video_src):
     video_src.set(cv2.CAP_PROP_POS_FRAMES, 0)
     res, frame0 = video_src.read()
     res, frame1 = video_src.read()
+
     i = 0
     while res:
         if i % 10 == 0:
