@@ -105,7 +105,7 @@ def test_decompose_H(video_src):
 
     diffs = [np.linalg.norm(H - Hr) for Hr in HD.H_r]
 
-    best = np.argmin(diffs)
+    best = 2
 
     H_best = HD.H_r[best]
     # H_best = HD.H_r[0]
@@ -119,8 +119,8 @@ def test_decompose_H(video_src):
     # Distortion coefficients (replace with your actual distortion coefficients or use zeros if unknown)
     dist_coeffs = np.array([0, 0, 0, 0, 0], dtype=float)
 
-    #if (undistortion == True):
-    #    dist_coeffs = dist
+    if (undistortion == True):
+       dist_coeffs = dist
 
     h, w = frame1.shape[:2]
     overlay = cv2.warpPerspective(frame0, H_best, (w, h))
