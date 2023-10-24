@@ -171,7 +171,7 @@ def test_full_run(video_src, K, dist):
     freeze = False
 
     while res:
-        if i % 10 == 0:
+        if i % 5 == 0:
             frame0 = cv2.undistort(frame0, K, dist, None, new_cam)
             frame1 = cv2.undistort(frame1, K, dist, None, new_cam)
             features = features_to_track(frame0)
@@ -195,7 +195,7 @@ def test_full_run(video_src, K, dist):
             h, w = frame1.shape[:2]
             overlay = cv2.warpPerspective(frame0, H_best, (w, h))
 
-            vis = cv2.addWeighted(frame1, 0.5, overlay, 0.5, 0.0)
+            vis = cv2.addWeighted(frame0, 0.5, overlay, 0.5, 0.0)
 
             # Draw the axes on the image
             vis = cv2.drawFrameAxes(
@@ -214,14 +214,22 @@ def test_full_run(video_src, K, dist):
 
             for (x0, y0), (x1, y1) in zip(v0, v1):
                 x0, y0, x1, y1 = map(int, [x0, y0, x1, y1])
-                cv2.line(vis, (x0, y0), (x1, y1), (200, 0, 0), 2)
-                cv2.circle(vis, (x1, y1), 2, green, -1)
+                cv2.line(vis, (x0, y0), (x1, y1), (0, 0, 255), 2)
+                cv2.circle(vis, (x1, y1), 1, green, -1)
 
             # add i as text
             cv2.putText(vis, str(i), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
+            length = np.sqrt(x**2 + y**2 + z**2)
+
+            # add x, y, z as text
+            cv2.putText(vis, "x: " + str(x), (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(vis, "y: " + str(y), (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(vis, "z: " + str(z), (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(vis, "length: " + str(length), (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (128, 128, 128), 2)
+
             cv2.imshow('decomposed_H', vis)
-            key = cv2.waitKey(0) if freeze else cv2.waitKey(100)
+            key = cv2.waitKey(0) if freeze else cv2.waitKey(300)
             if key == 27:
                 break
             if key == ord(' '):
