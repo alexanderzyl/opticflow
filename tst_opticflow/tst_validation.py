@@ -1,4 +1,5 @@
 import copy
+from unittest import mock
 
 import cv2
 import numpy as np
@@ -159,7 +160,7 @@ def test_sinogram_2_frames(video_src):
     cv2.waitKey(0)
 
 
-def test_full_run(video_src, K, dist):
+def test_full_run(video_src, K, dist, capture=False):
     video_src.set(cv2.CAP_PROP_POS_FRAMES, 0)
     res, frame0 = video_src.read()
     res, frame1 = video_src.read()
@@ -169,6 +170,13 @@ def test_full_run(video_src, K, dist):
     new_cam, roi = cv2.getOptimalNewCameraMatrix(K, dist, (w, h), 1, (w, h))
 
     freeze = False
+
+    # Define the codec and create VideoWriter object
+    frame_width = frame0.shape[1]
+    frame_height = frame1.shape[0]
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v') if capture else mock.MagicMock()
+
+    out = cv2.VideoWriter('./demo_video.mp4', fourcc, 3.3, (frame_width, frame_height)) if capture else mock.MagicMock()
 
     while res:
         if i % 5 == 0:
@@ -220,7 +228,7 @@ def test_full_run(video_src, K, dist):
             # add i as text
             cv2.putText(vis, str(i), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-            length = np.sqrt(x**2 + y**2 + z**2)
+            length = np.sqrt(x ** 2 + y ** 2 + z ** 2)
 
             # add x, y, z as text
             cv2.putText(vis, "x: " + str(x), (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
@@ -234,10 +242,11 @@ def test_full_run(video_src, K, dist):
                 break
             if key == ord(' '):
                 freeze = not freeze
+            out.write(vis)
             cv2.destroyAllWindows()
 
         frame0 = frame1
         res, frame1 = video_src.read()
         i += 1
-
+    out.release()
     print(i)
